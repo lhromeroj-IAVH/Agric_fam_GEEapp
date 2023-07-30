@@ -1,0 +1,492 @@
+var palettes = require('users/gena/packages:palettes');
+var panel1 = ui.Panel({style: {width: '30%'}});
+var era5 = ee.ImageCollection('ECMWF/ERA5_LAND/MONTHLY_AGGR');
+var rectangle = ee.Geometry.Rectangle(-85.3, -9.2, -59.08, 17.1); // Colombia
+var bbox = ee.Feature(rectangle).geometry(); 
+
+var today = ee.Date(new Date().toISOString().split('T')[0]);
+
+var start_period = ee.Date('1950-02-01');
+
+var vistemp = {
+  bands: ['temperature_2m'],
+  min: -5,
+  max: 35,
+  palette: [
+    '000080', '0000d9', '4000ff', '8000ff', '0080ff', '00ffff',
+    '00ff80', '80ff00', 'daff00', 'ffff00', 'fff500', 'ffda00',
+    'ffb000', 'ffa400', 'ff4f00', 'ff2500', 'ff0a00', 'ff00ff',
+  ]
+};
+var vistempsoil = {
+  bands: ['mean'],
+  min: 1,
+  max: 35,
+  palette: palettes.cmocean.Solar[7].reverse().slice(1,7)
+};
+var viswatersoil = {
+  bands: ['mean'],
+  min: 0,
+  max: 0.6,
+  palette: palettes.cmocean.Deep[7].reverse().slice(1,10)
+};
+var visevpsoil = {
+  bands: ['evaporation_from_bare_soil_sum'],
+  min: 0,
+  max: 140,
+  palette: palettes.colorbrewer.YlGnBu[7].slice(1,10)
+};
+var visevpdosel = {
+  bands: ['evaporation_from_the_top_of_canopy_sum'],
+  min: 0,
+  max: 105,
+  palette: palettes.colorbrewer.PuBu[9].slice(1,10)
+};
+var visevptrans = {
+  bands: ['evaporation_from_vegetation_transpiration_sum'],
+  min: 0,
+  max: 70,
+  palette: palettes.colorbrewer.Greens[9].slice(1,10)
+};
+var visevppote = {
+  bands: ['potential_evaporation_sum'],
+  min: 100,
+  max: 1000,
+  palette: palettes.colorbrewer.BuPu[9].slice(1,10)
+};
+var visevptotal = {
+  bands: ['total_evaporation_sum'],
+  min: 40,
+  max: 200,
+  palette: palettes.colorbrewer.RdPu[9].slice(1,10)
+};
+var vislai = {
+  bands: ['leaf_area_index_low_vegetation'],
+  min: 0,
+  max: 4,
+  palette: palettes.cmocean.Speed[7].slice(1,10)
+};
+var vispre = {
+  bands: ['total_precipitation_sum'],
+  min: 200,
+  max: 500,
+  palette: palettes.crameri.oslo[50].reverse().slice(3,10)
+};
+
+function renderDateRange(dateRange) {
+  // 2m Temperature
+  var dateMonth = dateRange.start().update({day:1});
+  
+  fechaLabel.setValue('Mes escogido: '+dateMonth.format("MMM-yyyy").getInfo());
+  
+  var temp = era5 
+        .select('temperature_2m')
+        .filterDate(dateMonth, dateMonth.advance(1,'month'))
+        .first(); // make a composite of the collection
+  var tempsoil = era5 
+        .select('soil_temperature_level_1','soil_temperature_level_2')
+        .filterDate(dateMonth, dateMonth.advance(1,'month'))
+        .first(); // make a composite of the collection
+  var watersoil = era5 
+        .select('volumetric_soil_water_layer_1','volumetric_soil_water_layer_2')
+        .filterDate(dateMonth, dateMonth.advance(1,'month'))
+        .first(); // make a composite of the collection
+  var evpsoil = era5 
+        .select('evaporation_from_bare_soil_sum')
+        .filterDate(dateMonth, dateMonth.advance(1,'month'))
+        .first(); // make a composite of the collection 
+  var evpdosel = era5 
+        .select('evaporation_from_the_top_of_canopy_sum')
+        .filterDate(dateMonth, dateMonth.advance(1,'month'))
+        .first(); // make a composite of the collection 
+  var evptrans = era5 
+        .select('evaporation_from_vegetation_transpiration_sum')
+        .filterDate(dateMonth, dateMonth.advance(1,'month'))
+        .first(); // make a composite of the collection 
+  var evppote = era5 
+        .select('potential_evaporation_sum')
+        .filterDate(dateMonth, dateMonth.advance(1,'month'))
+        .first(); // make a composite of the collection 
+  var evptotal = era5 
+        .select('total_evaporation_sum')
+        .filterDate(dateMonth, dateMonth.advance(1,'month'))
+        .first(); // make a composite of the collection 
+  var pre = era5 
+        .select('total_precipitation_sum')
+        .filterDate(dateMonth, dateMonth.advance(1,'month'))
+        .first(); // make a composite of the collection 
+  var lai = era5 
+        .select('leaf_area_index_low_vegetation')
+        .filterDate(dateMonth, dateMonth.advance(1,'month'))
+        .first(); // make a composite of the collection 
+    
+    
+    
+    
+    
+    
+        
+  var tempV1 = temp.clip(bbox).add(-273.15);  
+  var tempsoilV1 = tempsoil.clip(bbox).reduce('mean').add(-273.15);
+  var watersoilV1 = watersoil.clip(bbox).reduce('mean');
+  var evpsoilV1 = evpsoil.clip(bbox).multiply(-1000);
+  var evpdoselV1 = evpdosel.clip(bbox).multiply(-1000);
+  var evptransV0 = evptrans.clip(bbox).multiply(-1000);
+  var evptransV1 = evptransV0.mask(evptransV0.gt(0));
+  var evppoteV1 = evppote.clip(bbox).multiply(-1000);
+  var evptotalV1 = evptotal.clip(bbox).multiply(-1000);
+  var preV1 = pre.clip(bbox).multiply(1000);
+  var laiV1 = lai.clip(bbox);
+  
+  
+  // Load the image into map using standard symbology
+var CapatempV1 = ui.Map.Layer(tempV1,vistemp,'Temp 2m', false);
+var CapatempsoilV1 = ui.Map.Layer(tempsoilV1,vistempsoil,'Temp suelo', false);
+var CapawatersoilV1 = ui.Map.Layer(watersoilV1,viswatersoil,'vol. agua suelo', false);
+var CapaevpsoilV1 = ui.Map.Layer(evpsoilV1,visevpsoil,'evp suelo', false);
+var CapaevpdoselV1 = ui.Map.Layer(evpdoselV1,visevpdosel,'evp dosel', false);
+var CapaevptransV1 = ui.Map.Layer(evptransV1,visevptrans,'evapotranspiración', false);
+var CapaevppoteV1 = ui.Map.Layer(evppoteV1,visevppote,'evp potencial', false);
+var CapaevptotalV1 = ui.Map.Layer(evptotalV1,visevptotal,'evp total', false);
+var CapapreV1 = ui.Map.Layer(preV1,vispre,'precipitación', false);
+var CapalaiV1 = ui.Map.Layer(laiV1,vislai,'LeafAreaIndex', false);
+  
+  
+  
+  // Reset all layers
+  mapPanel.layers().reset([
+    CapalaiV1,CapapreV1,CapaevptotalV1,CapaevppoteV1
+    ,CapaevptransV1,CapaevpdoselV1,CapaevpsoilV1
+    ,CapawatersoilV1,CapatempsoilV1,CapatempV1
+    ,capaVeredas, capaFrontera, capaReservas
+    ]);
+    
+  // create a checkbox to hide/show the layer
+var checkTemp = ui.Checkbox({
+  label: 'Temperatura 2m °C',
+  value: false,
+  onChange: function(value) {
+      CapatempV1.setShown(checkTemp.getValue() === true ? value : false);
+  }
+});
+var checkTempsoil = ui.Checkbox({
+  label: 'Temp. suelo 0-28cm °C',
+  value: false,
+  onChange: function(value) {
+      CapatempsoilV1.setShown(checkTempsoil.getValue() === true ? value : false);
+  }
+});
+var checkwatersoil = ui.Checkbox({
+  label: 'Volumen agua en suelo 0-28cm %',
+  value: false,
+  onChange: function(value) {
+      CapawatersoilV1.setShown(checkwatersoil.getValue() === true ? value : false);
+  }
+});
+var checkevpsoil = ui.Checkbox({
+  label: 'Evaporación en suelo mm',
+  value: false,
+  onChange: function(value) {
+      CapaevpsoilV1.setShown(checkevpsoil.getValue() === true ? value : false);
+  }
+});
+var checkevpdosel = ui.Checkbox({
+  label: 'Evaporación en dosel mm',
+  value: false,
+  onChange: function(value) {
+      CapaevpdoselV1.setShown(checkevpdosel.getValue() === true ? value : false);
+  }
+});
+var checkevptrans = ui.Checkbox({
+  label: 'Evapotranspiración mm',
+  value: false,
+  onChange: function(value) {
+      CapaevptransV1.setShown(checkevptrans.getValue() === true ? value : false);
+  }
+});
+var checkevppote = ui.Checkbox({
+  label: 'Evaporanción potencial mm',
+  value: false,
+  onChange: function(value) {
+      CapaevppoteV1.setShown(checkevppote.getValue() === true ? value : false);
+  }
+});
+var checkevptotal = ui.Checkbox({
+  label: 'Evaporación total mm',
+  value: false,
+  onChange: function(value) {
+      CapaevptotalV1.setShown(checkevptotal.getValue() === true ? value : false);
+  }
+});
+var checkpre = ui.Checkbox({
+  label: 'Precipitación total mm',
+  value: false,
+  onChange: function(value) {
+      CapapreV1.setShown(checkpre.getValue() === true ? value : false);
+  }
+});
+var checklai = ui.Checkbox({
+  label: 'Leaf Area Index',
+  value: false,
+  onChange: function(value) {
+      CapalaiV1.setShown(checklai.getValue() === true ? value : false);
+  }
+});
+
+
+// create a slider to change opacity of the layer
+var opacityTemp = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacityTemp.onSlide(function(value) {
+  {    CapatempV1.setOpacity(value);  }
+});
+var opacityTempsoil = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacityTempsoil.onSlide(function(value) {
+  {    CapatempsoilV1.setOpacity(value);  }
+});
+var opacitywatersoil = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacitywatersoil.onSlide(function(value) {
+  {    CapawatersoilV1.setOpacity(value);  }
+});
+var opacityevpsoil = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacityevpsoil.onSlide(function(value) {
+  {    CapaevpsoilV1.setOpacity(value);  }
+});
+var opacityevpdosel = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacityevpdosel.onSlide(function(value) {
+  {    CapaevpdoselV1.setOpacity(value);  }
+});
+var opacityevptrans = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacityevptrans.onSlide(function(value) {
+  {    CapaevptransV1.setOpacity(value);  }
+});
+var opacityevppote = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacityevppote.onSlide(function(value) {
+  {    CapaevppoteV1.setOpacity(value);  }
+});
+var opacityevptotal = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacityevptotal.onSlide(function(value) {
+  {    CapaevptotalV1.setOpacity(value);  }
+});
+var opacitypre = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacitypre.onSlide(function(value) {
+  {    CapapreV1.setOpacity(value);  }
+});
+var opacitylai = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacitylai.onSlide(function(value) {
+  {    CapalaiV1.setOpacity(value);  }
+});
+
+
+  // add in a panel the checkbox and the slider 
+  var PanelTemp =
+      ui.Panel([checkTemp, opacityTemp], ui.Panel.Layout.Flow('horizontal'));
+  panel1.widgets().set(2,PanelTemp);
+  var PanelTempsoil =
+      ui.Panel([checkTempsoil, opacityTempsoil], ui.Panel.Layout.Flow('horizontal'));
+  panel1.widgets().set(3,PanelTempsoil);
+  var Panelwatersoil =
+      ui.Panel([checkwatersoil, opacitywatersoil], ui.Panel.Layout.Flow('horizontal'));
+  panel1.widgets().set(4,Panelwatersoil);
+  var Panelevpsoil =
+      ui.Panel([checkevpsoil, opacityevpsoil], ui.Panel.Layout.Flow('horizontal'));
+  panel1.widgets().set(5,Panelevpsoil);  
+  var Panelevpdosel =
+      ui.Panel([checkevpdosel, opacityevpdosel], ui.Panel.Layout.Flow('horizontal'));
+  panel1.widgets().set(6,Panelevpdosel);  
+  var Panelevptrans =
+      ui.Panel([checkevptrans, opacityevptrans], ui.Panel.Layout.Flow('horizontal'));
+  panel1.widgets().set(7,Panelevptrans);
+  var Panelevppote =
+      ui.Panel([checkevppote, opacityevppote], ui.Panel.Layout.Flow('horizontal'));
+  panel1.widgets().set(8,Panelevppote); 
+  var Panelevptotal =
+      ui.Panel([checkevptotal, opacityevptotal], ui.Panel.Layout.Flow('horizontal'));
+  panel1.widgets().set(9,Panelevptotal); 
+  var Panelpre =
+      ui.Panel([checkpre, opacitypre], ui.Panel.Layout.Flow('horizontal'));
+  panel1.widgets().set(10,Panelpre); 
+  var Panellai =
+      ui.Panel([checklai, opacitylai], ui.Panel.Layout.Flow('horizontal'));
+  panel1.widgets().set(11,Panellai); 
+  
+  
+  
+  
+}
+
+var startDate = start_period.getInfo();
+var endDate = today.advance(-1,'month').getInfo();
+
+
+
+// call the layer you want to display
+var capaVeredas = ui.Map.Layer(table, {}, "veredas", false);
+
+// create a checkbox to hide/show the layer
+var veredas = ui.Checkbox({
+  label: 'Veredas',
+  value: false,
+  onChange: function(value) {
+      capaVeredas.setShown(veredas.getValue() === true ? value : false);
+  }
+});
+
+// create a slider to change opacity of the layer
+var opacityVereda = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacityVereda.onSlide(function(value) {
+  {    capaVeredas.setOpacity(value);  }
+});
+
+// add in a panel the checkbox and the slider 
+var viewPanel =
+    ui.Panel([veredas, opacityVereda], ui.Panel.Layout.Flow('horizontal'));
+
+// call the layer you want to display
+var capaFrontera= ui.Map.Layer(image2, {}, "frontera", false);
+
+// create a checkbox to hide/show the layer
+var frontera = ui.Checkbox({
+  label: 'Frontera Agricola',
+  value: false,
+  onChange: function(value) {
+      capaFrontera.setShown(frontera.getValue() === true ? value : false);
+  }
+});
+
+// create a slider to change opacity of the layer
+var opacityFrontera = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacityFrontera.onSlide(function(value) {
+  {    capaFrontera.setOpacity(value);  }
+});
+
+// add in a panel the checkbox and the slider 
+var viewPanelFrontera =
+    ui.Panel([frontera, opacityFrontera], ui.Panel.Layout.Flow('horizontal'));
+
+// call the layer you want to display
+var capaReservas= ui.Map.Layer(image, {}, "Reservas", false);
+
+// create a checkbox to hide/show the layer
+var reservas = ui.Checkbox({
+  label: 'Reservas Campesinas',
+  value: false,
+  onChange: function(value) {
+      capaReservas.setShown(reservas.getValue() === true ? value : false);
+  }
+});
+
+// create a slider to change opacity of the layer
+var opacityReservas = ui.Slider({
+  min: 0,
+  max: 1,
+  value: 1,
+  step: 0.01,
+});
+opacityReservas.onSlide(function(value) {
+  {    capaReservas.setOpacity(value);  }
+});
+
+// add in a panel the checkbox and the slider 
+var viewPanelReservas =
+    ui.Panel([reservas, opacityReservas], ui.Panel.Layout.Flow('horizontal'));
+
+
+
+
+
+// Slider function
+var slider = ui.DateSlider({
+  start: startDate.value, 
+  end: endDate.value, 
+  period: 1, // Every 5 days
+  style: {width: '300px', padding: '10px'},
+  onChange: renderDateRange
+});
+
+var fechaLabel = ui.Label({
+  value:"Elija una fecha en el menú de arriba, para escoger un mes",
+  style:{
+            fontSize:'17px' ,
+            color:'FF0000',
+            textAlign:'center'
+    }});
+    
+
+  
+
+
+ //width es el porcentaje de ocupacion de la pantalla
+panel1.add(slider)
+panel1.add(fechaLabel)
+
+var mapPanel = ui.Map().centerObject(bbox, 6).setOptions('satellite')
+mapPanel.style().set('cursor', 'crosshair')
+
+mapPanel.layers().add(capaVeredas)
+mapPanel.add(viewPanel)
+mapPanel.layers().add(capaFrontera)
+mapPanel.add(viewPanelFrontera)
+mapPanel.layers().add(capaReservas)
+mapPanel.add(viewPanelReservas)
+ui.root.clear();
+ui.root.add(ui.SplitPanel(panel1, mapPanel));
